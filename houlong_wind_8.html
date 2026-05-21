@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>後龍風象 — Houlong Wind Bloom</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;background:#0c0c0c;overflow:hidden;font-family:'Space Mono',monospace}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%}
+
+.ui{position:fixed;z-index:10;top:0;left:0;width:100%;height:100%;pointer-events:none;padding:1.8rem;display:flex;flex-direction:column;justify-content:space-between}
+
+/* panel */
+.panel{font-size:10px;letter-spacing:.06em;line-height:2;color:rgba(255,255,255,0.3);opacity:0;animation:fi .8s .5s forwards}
+.panel strong{display:block;font-size:8px;letter-spacing:.22em;color:rgba(255,255,255,0.15);margin-top:8px}
+.panel .val{color:rgba(255,255,255,0.65)}
+
+/* bottom */
+.bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem}
+.controls{display:flex;flex-direction:column;gap:8px;opacity:0;animation:fi .8s 1s forwards;pointer-events:all}
+.ctrl-label{font-size:8px;letter-spacing:.2em;color:rgba(255,255,255,0.18)}
+.row{display:flex;gap:5px;flex-wrap:wrap;max-width:680px;align-items:center}
+.btn{padding:4px 11px;font-size:8px;letter-spacing:.1em;border:0.5px solid rgba(255,255,255,0.1);border-radius:3px;color:rgba(255,255,255,0.28);cursor:pointer;transition:all .2s;background:transparent;font-family:'Space Mono',monospace}
+.btn:hover{border-color:rgba(255,255,255,0.32);color:rgba(255,255,255,0.55)}
+.btn.active{border-color:rgba(255,255,255,0.65);color:rgba(255,255,255,0.88);background:rgba(255,255,255,0.04)}
+.btn-save{padding:4px 14px;font-size:8px;letter-spacing:.12em;border:0.5px solid rgba(255,255,255,0.25);border-radius:3px;color:rgba(255,255,255,0.55);cursor:pointer;transition:all .25s;background:transparent;font-family:'Space Mono',monospace;display:flex;align-items:center;gap:6px}
+.btn-save:hover{border-color:rgba(255,255,255,0.6);color:rgba(255,255,255,0.9);background:rgba(255,255,255,0.05)}
+.btn-save.flash{border-color:rgba(255,255,255,0.9);color:#fff;background:rgba(255,255,255,0.12)}
+.playrow{display:flex;align-items:center;gap:10px;margin-top:2px}
+.play-btn{width:26px;height:26px;border-radius:50%;border:0.5px solid rgba(255,255,255,0.18);background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:all;transition:border-color .2s}
+.play-btn:hover{border-color:rgba(255,255,255,0.45)}
+.play-btn svg{width:9px;height:9px;fill:rgba(255,255,255,0.55)}
+.speed-wrap{display:flex;align-items:center;gap:8px}
+.speed-wrap input[type=range]{width:80px;accent-color:rgba(255,255,255,0.35)}
+
+/* date picker */
+.date-block{display:flex;flex-direction:column;gap:6px}
+.date-row{display:flex;align-items:center;gap:8px}
+.date-input{background:transparent;border:0.5px solid rgba(255,255,255,0.18);border-radius:3px;padding:4px 8px;font-size:10px;font-family:'Space Mono',monospace;color:rgba(255,255,255,0.7);letter-spacing:.06em;cursor:pointer;outline:none;color-scheme:dark}
+.date-input:hover{border-color:rgba(255,255,255,0.4)}
+.date-nav{display:flex;gap:4px}
+.date-nav button{width:22px;height:22px;border:0.5px solid rgba(255,255,255,0.12);border-radius:3px;background:transparent;color:rgba(255,255,255,0.4);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;transition:all .2s;font-family:monospace}
+.date-nav button:hover{border-color:rgba(255,255,255,0.4);color:rgba(255,255,255,0.8)}
+.fetch-status{font-size:8px;letter-spacing:.1em;color:rgba(255,255,255,0.25);min-height:12px}
+.fetch-status.loading{color:rgba(255,200,80,0.6)}
+.fetch-status.err{color:rgba(255,100,80,0.7)}
+.fetch-status.ok{color:rgba(80,220,140,0.6)}
+
+/* timeline */
+.tl-wrap{pointer-events:all;margin-top:8px;user-select:none;-webkit-user-select:none}
+.tl-header{display:flex;justify-content:space-between;margin-bottom:4px}
+.tl-track{position:relative;height:24px;cursor:pointer}
+.tl-rail{position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(255,255,255,0.1);transform:translateY(-50%)}
+.tl-progress{position:absolute;top:50%;left:0;height:1px;background:rgba(255,255,255,0.4);transform:translateY(-50%);pointer-events:none}
+.tl-thumb{position:absolute;top:50%;width:9px;height:9px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);box-shadow:0 0 8px rgba(255,255,255,0.6);pointer-events:none}
+.tl-dots-layer{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+.credit{font-size:8px;letter-spacing:.12em;color:rgba(255,255,255,0.1);text-align:right;opacity:0;animation:fi 1s 2s forwards}
+@keyframes fi{from{opacity:0}to{opacity:1}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="ui">
+  <div class="panel">
+    <strong>LOCATION</strong>
+    後龍鎮 Houlong<br>
+    <span style="color:rgba(255,255,255,0.2)">24.60°N 120.79°E</span>
+    <strong>CURRENT</strong>
+    Date: <span class="val" id="pDate">—</span><br>
+    Hour: <span class="val" id="pHour">—</span><br>
+    Dir: <span class="val" id="pDir">—</span><br>
+    Speed: <span class="val" id="pSpd">—</span><br>
+    Gust: <span class="val" id="pGust">—</span>
+    <strong>VIEW</strong>
+    Blend: <span class="val" id="pBlend">—</span><br>
+    Points: <span class="val" id="pCount">—</span>
+  </div>
+
+  <div class="bottom">
+    <div class="controls">
+
+      <!-- DATE PICKER -->
+      <div class="date-block">
+        <div class="ctrl-label">DATE — 選擇日期</div>
+        <div class="date-row">
+          <div class="date-nav">
+            <button id="prevDay" title="前一天">‹</button>
+            <button id="nextDay" title="後一天">›</button>
+          </div>
+          <input type="date" class="date-input" id="datePicker">
+          <div class="fetch-status" id="fetchStatus">—</div>
+        </div>
+      </div>
+
+      <!-- BLEND -->
+      <div class="ctrl-label" style="margin-top:4px">BLEND MODE</div>
+      <div class="row" id="blendModes"></div>
+
+      <!-- PLAYROW -->
+      <div class="playrow">
+        <button class="play-btn" id="playBtn"><svg viewBox="0 0 9 10" id="playIco"><polygon points="1,0 8,5 1,10"/></svg></button>
+        <span class="ctrl-label" id="playLbl">PLAY</span>
+        <div class="speed-wrap">
+          <span class="ctrl-label">SPD</span>
+          <input type="range" min="1" max="10" value="6" id="speedRange">
+          <span class="ctrl-label" id="spdVal">6</span>
+        </div>
+        <button class="btn-save" id="saveBtn">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><line x1="6" y1="1" x2="6" y2="8"/><polyline points="3,5.5 6,8.5 9,5.5"/><line x1="1" y1="10" x2="11" y2="10"/></svg>
+          SAVE PNG
+        </button>
+      </div>
+
+      <!-- TIMELINE -->
+      <div class="tl-wrap" id="tlWrap">
+        <div class="tl-header">
+          <span class="ctrl-label">TIMELINE — 24H</span>
+          <span class="ctrl-label" id="tlLabel">0 / 0</span>
+        </div>
+        <div class="tl-track" id="tlTrack">
+          <div class="tl-rail"></div>
+          <div class="tl-progress" id="tlProgress"></div>
+          <svg class="tl-dots-layer" id="tlDots"></svg>
+          <div class="tl-thumb" id="tlThumb"></div>
+        </div>
+      </div>
+    </div>
+    <div class="credit">後龍鎮沿海風象 · Open-Meteo API</div>
+  </div>
+</div>
+
+<script>
+// ── EASING ───────────────────────────────────────────
+const E = { out: t => 1 - Math.pow(1 - t, 3) };
+
+// ── OPEN-METEO FETCH ─────────────────────────────────
+const LAT = 24.60, LON = 120.79;
+
+async function fetchDay(dateStr){
+  // Open-Meteo uses different endpoints for past vs future
+  const today = new Date().toLocaleDateString('sv', {timeZone:'Asia/Taipei'});
+  const isFuture = dateStr > today;
+  const isPast   = dateStr < today;
+
+  // Historical data (before today) → archive API
+  // Today + future → forecast API
+  const base = isPast
+    ? 'https://archive-api.open-meteo.com/v1/archive'
+    : 'https://api.open-meteo.com/v1/forecast';
+
+  const params = new URLSearchParams({
+    latitude:   LAT,
+    longitude:  LON,
+    hourly:     'wind_speed_10m,wind_direction_10m,wind_gusts_10m',
+    wind_speed_unit: 'kn',
+    start_date: dateStr,
+    end_date:   dateStr,
+    timezone:   'Asia/Taipei',
+    format:     'json',
+  });
+
+  const res = await fetch(`${base}?${params}`, { mode: 'cors' });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  if(json.error) throw new Error(json.reason || 'API error');
+  const h = json.hourly;
+  return h.time.map((t, i) => ({
+    label:     t.slice(11,16),
+    windDeg:   h.wind_direction_10m[i] ?? 0,
+    windSpeed: h.wind_speed_10m[i]     ?? 0,
+    gustSpeed: h.wind_gusts_10m[i]     ?? 0,
+    color:     hourToColor(new Date(t).getHours()),
+  }));
+}
+
+// Map hour → colour: night=deep blue, dawn=purple, day=amber, dusk=orange
+function hourToColor(h){
+  const stops = [
+    [0,  {r:80, g:100,b:200}],
+    [5,  {r:150,g:100,b:220}],
+    [8,  {r:220,g:160,b:80}],
+    [12, {r:255,g:200,b:80}],
+    [17, {r:255,g:130,b:60}],
+    [20, {r:180,g:80, b:160}],
+    [24, {r:80, g:100,b:200}],
+  ];
+  for(let i=0;i<stops.length-1;i++){
+    const [h0,c0]=stops[i], [h1,c1]=stops[i+1];
+    if(h>=h0&&h<h1){
+      const t=(h-h0)/(h1-h0);
+      return {
+        r:Math.round(c0.r+(c1.r-c0.r)*t),
+        g:Math.round(c0.g+(c1.g-c0.g)*t),
+        b:Math.round(c0.b+(c1.b-c0.b)*t),
+      };
+    }
+  }
+  return {r:80,g:100,b:200};
+}
+
+// ── BLEND MODES ──────────────────────────────────────
+const BLEND_MODES=[
+  {id:'screen',      label:'screen'},
+  {id:'lighten',     label:'lighten'},
+  {id:'color-dodge', label:'color-dodge'},
+  {id:'source-over', label:'normal'},
+];
+
+// ── CANVAS ───────────────────────────────────────────
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+let W,H,cx,cy;
+function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;cx=W/2;cy=H/2;}
+window.addEventListener('resize',()=>{resize();offResize();fullRedraw();});
+resize();
+
+const off=document.createElement('canvas');
+const octx=off.getContext('2d');
+const tmp=document.createElement('canvas');
+const tc=tmp.getContext('2d');
+function offResize(){off.width=W;off.height=H;tmp.width=W;tmp.height=H;}
+offResize();
+
+let bModeIdx=0;
+let currentData=[];
+let currentBlend=BLEND_MODES[0].id;
+let drawnCount=0,playing=false,speed=6,animRaf=null;
+let currentDate='';
+
+// ── PETAL GEOMETRY ───────────────────────────────────
+function getPetals(d){
+  const baseR=Math.min(W,H)*0.46;
+  const maxSpd=40;
+  const mL=baseR*Math.pow(Math.max(d.windSpeed,1)/maxSpd,0.72);
+  const mW=Math.max(3,baseR*0.065*(1)*(d.windSpeed/18));
+  const A=0.12, ma=(d.windDeg-90)*Math.PI/180;
+  const p=[];
+  [[0,1,1,A],[-.044,.97,.92,A*.85],[.044,.97,.92,A*.85]].forEach(([o,lf,wf,a])=>
+    p.push({ang:ma+o,len:mL*lf,w:mW*wf,a}));
+  [{o:28,lf:.56,wf:.46,a:A*.52},{o:-28,lf:.52,wf:.42,a:A*.46},
+   {o:58,lf:.34,wf:.30,a:A*.34},{o:-58,lf:.32,wf:.28,a:A*.30}].forEach(h=>
+    p.push({ang:(d.windDeg-90+h.o)*Math.PI/180,len:mL*h.lf,w:mW*h.wf,a:h.a}));
+  p.push({ang:ma+Math.PI,len:mL*.38,w:mW*.32,a:A*.22});
+  return p;
+}
+
+function drawEllipse(tgt,ang,len,w,a,c){
+  const rx=Math.max(0,len);
+  const ry=Math.max(0,w);
+  if(rx<1||ry<1||a<=0) return;
+  tgt.save();
+  tgt.translate(cx,cy);
+  tgt.rotate(ang);
+  const bulgeX=rx*0.28, tipX=rx;
+  tgt.beginPath();
+  tgt.moveTo(0,0);
+  tgt.bezierCurveTo(bulgeX,-ry, tipX*0.75,-ry*0.25, tipX,0);
+  tgt.bezierCurveTo(tipX*0.75,ry*0.25, bulgeX,ry, 0,0);
+  tgt.closePath();
+  const grad=tgt.createLinearGradient(0,0,tipX,0);
+  grad.addColorStop(0,  `rgba(${c.r},${c.g},${c.b},${a*1.0})`);
+  grad.addColorStop(0.3,`rgba(${c.r},${c.g},${c.b},${a*0.85})`);
+  grad.addColorStop(1,  `rgba(${c.r},${c.g},${c.b},${a*0.18})`);
+  tgt.fillStyle=grad;
+  tgt.fill();
+  tgt.restore();
+}
+
+function bakePoint(tgt,d){
+  const c=d.color||{r:200,g:200,b:200};
+  getPetals(d).forEach(p=>drawEllipse(tgt,p.ang,p.len,p.w,p.a,c));
+}
+
+// ── COMPASS DIAL ─────────────────────────────────────
+const CARD_LABELS={0:'N',90:'E',180:'S',270:'W'};
+function drawDial(){
+  const baseR=Math.min(W,H)*0.46;
+  const dialR=baseR*0.72+Math.min(W,H)*0.03;
+  const labelR=dialR+16;
+  ctx.save();
+  ctx.globalCompositeOperation='source-over';
+  ctx.translate(cx,cy);
+  ctx.beginPath();ctx.arc(0,0,dialR,0,Math.PI*2);
+  ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=0.5;ctx.stroke();
+  for(let deg=0;deg<360;deg+=5){
+    if(deg%15===0) continue;
+    const rad=(deg-90)*Math.PI/180;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(rad)*(dialR-3),Math.sin(rad)*(dialR-3));
+    ctx.lineTo(Math.cos(rad)*dialR,Math.sin(rad)*dialR);
+    ctx.strokeStyle='rgba(255,255,255,0.09)';ctx.lineWidth=0.5;ctx.stroke();
+  }
+  for(let deg=0;deg<360;deg+=15){
+    const rad=(deg-90)*Math.PI/180;
+    const isCard=deg%90===0,is45=deg%45===0&&!isCard,is30=deg%30===0&&!isCard&&!is45;
+    const tickLen=isCard?12:is45?9:is30?7:5;
+    const inner=dialR-tickLen;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(rad)*inner,Math.sin(rad)*inner);
+    ctx.lineTo(Math.cos(rad)*dialR,Math.sin(rad)*dialR);
+    ctx.strokeStyle=isCard?'rgba(255,255,255,0.65)':is45?'rgba(255,255,255,0.35)':'rgba(255,255,255,0.20)';
+    ctx.lineWidth=isCard?1.2:is45?0.8:0.5;ctx.stroke();
+    if(deg%30===0&&!isCard){
+      ctx.font='9px Space Mono,monospace';ctx.fillStyle='rgba(255,255,255,0.28)';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(deg+'°',Math.cos(rad)*labelR,Math.sin(rad)*labelR);
+    }
+    if(isCard){
+      ctx.font='bold 12px Space Mono,monospace';ctx.fillStyle='rgba(255,255,255,0.80)';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(CARD_LABELS[deg],Math.cos(rad)*labelR,Math.sin(rad)*labelR);
+    }
+  }
+  ctx.restore();
+}
+
+// ── COMPOSITE ────────────────────────────────────────
+function composite(withTmp){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0c0c0c';ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.globalCompositeOperation=currentBlend;
+  ctx.drawImage(off,0,0);
+  if(withTmp) ctx.drawImage(tmp,0,0);
+  ctx.restore();
+  drawDial();
+  ctx.save();ctx.globalCompositeOperation='source-over';
+  ctx.beginPath();ctx.arc(cx,cy,2.5,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fill();
+  ctx.restore();
+  updatePanel();
+}
+
+function fullRedraw(){
+  octx.clearRect(0,0,W,H);
+  for(let i=0;i<drawnCount;i++) bakePoint(octx,currentData[i]);
+  composite(false);
+}
+
+// ── ANIMATE ──────────────────────────────────────────
+function animateIn(d,onDone){
+  if(animRaf){cancelAnimationFrame(animRaf);animRaf=null;}
+  const dur=Math.max(500,1200-speed*80);
+  const petals=getPetals(d);
+  const c=d.color||{r:200,g:200,b:200};
+  const t0=performance.now();
+  function step(now){
+    const globalT=Math.min((now-t0)/dur,1);
+    tc.clearRect(0,0,W,H);
+    petals.forEach(p=>{
+      const s=E.out(globalT);
+      drawEllipse(tc,p.ang,p.len*s,p.w*s,p.a*s,c);
+    });
+    composite(true);
+    if(globalT<1){animRaf=requestAnimationFrame(step);}
+    else{bakePoint(octx,d);tc.clearRect(0,0,W,H);composite(false);animRaf=null;if(onDone)onDone();}
+  }
+  animRaf=requestAnimationFrame(step);
+}
+
+function stepForward(onDone){
+  if(drawnCount>=currentData.length){onDone&&onDone();return;}
+  animateIn(currentData[drawnCount++],onDone);
+}
+
+function resetScene(){
+  if(animRaf){cancelAnimationFrame(animRaf);animRaf=null;}
+  drawnCount=0;octx.clearRect(0,0,W,H);tc.clearRect(0,0,W,H);composite(false);
+}
+
+// ── TIMELINE ─────────────────────────────────────────
+const tlTrack=document.getElementById('tlTrack');
+const tlProgress=document.getElementById('tlProgress');
+const tlThumb=document.getElementById('tlThumb');
+const tlDots=document.getElementById('tlDots');
+const tlLabel=document.getElementById('tlLabel');
+
+function buildDots(){
+  tlDots.innerHTML='';
+  const n=currentData.length;if(!n)return;
+  for(let i=0;i<n;i++){
+    const pct=n>1?i/(n-1)*100:0;
+    const ci=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    ci.setAttribute('cx',pct+'%');ci.setAttribute('cy','50%');ci.setAttribute('r','2');
+    ci.setAttribute('fill','rgba(255,255,255,0.18)');
+    tlDots.appendChild(ci);
+  }
+}
+
+function syncTimeline(){
+  const n=currentData.length;if(!n)return;
+  const pct=n>1&&drawnCount>0?(drawnCount-1)/(n-1)*100:0;
+  tlProgress.style.width=pct+'%';tlThumb.style.left=pct+'%';
+  tlLabel.textContent=`${drawnCount} / ${n}`;
+  tlDots.querySelectorAll('circle').forEach((c,i)=>{
+    c.setAttribute('fill',i<drawnCount?'rgba(255,255,255,0.8)':'rgba(255,255,255,0.18)');
+    c.setAttribute('r',i===drawnCount-1?'3.5':'2');
+  });
+}
+
+function seekTo(target){
+  target=Math.max(0,Math.min(target,currentData.length));
+  if(playActive)stopPlay();
+  if(animRaf){cancelAnimationFrame(animRaf);animRaf=null;}
+  drawnCount=target;
+  octx.clearRect(0,0,W,H);tc.clearRect(0,0,W,H);
+  for(let i=0;i<drawnCount;i++) bakePoint(octx,currentData[i]);
+  composite(false);syncTimeline();
+}
+
+function pxToCount(clientX){
+  const r=tlTrack.getBoundingClientRect();
+  const pct=Math.max(0,Math.min((clientX-r.left)/r.width,1));
+  return Math.round(pct*(currentData.length-1))+1;
+}
+
+let tlDrag=false;
+tlTrack.addEventListener('mousedown',e=>{tlDrag=true;seekTo(pxToCount(e.clientX));});
+window.addEventListener('mousemove',e=>{if(tlDrag)seekTo(pxToCount(e.clientX));});
+window.addEventListener('mouseup',()=>{tlDrag=false;});
+tlTrack.addEventListener('touchstart',e=>{tlDrag=true;seekTo(pxToCount(e.touches[0].clientX));},{passive:true});
+window.addEventListener('touchmove',e=>{if(tlDrag)seekTo(pxToCount(e.touches[0].clientX));},{passive:true});
+window.addEventListener('touchend',()=>{tlDrag=false;});
+
+// ── PANEL ────────────────────────────────────────────
+function updatePanel(){
+  if(!currentData.length)return;
+  const d=currentData[Math.max(0,drawnCount-1)];
+  document.getElementById('pDate').textContent=currentDate||'—';
+  document.getElementById('pHour').textContent=d.label||'—';
+  document.getElementById('pDir').textContent=`${Math.round(d.windDeg)}°`;
+  document.getElementById('pSpd').textContent=`${d.windSpeed.toFixed(1)} kt`;
+  document.getElementById('pGust').textContent=`${d.gustSpeed.toFixed(1)} kt`;
+  document.getElementById('pBlend').textContent=currentBlend;
+  document.getElementById('pCount').textContent=`${drawnCount} / ${currentData.length}`;
+  syncTimeline();
+}
+
+// ── PLAYBACK ─────────────────────────────────────────
+const playBtn=document.getElementById('playBtn');
+const playIco=document.getElementById('playIco');
+const playLbl=document.getElementById('playLbl');
+let playActive=false;
+
+function startPlay(){
+  playActive=true;playing=true;
+  playIco.innerHTML='<rect x="0" y="0" width="3" height="9"/><rect x="6" y="0" width="3" height="9"/>';
+  playLbl.textContent='PAUSE';
+  function next(){
+    if(!playActive)return;
+    if(drawnCount>=currentData.length){resetScene();setTimeout(()=>{if(playActive)stepForward(next);},500);return;}
+    stepForward(()=>{if(playActive)next();});
+  }
+  next();
+}
+function stopPlay(){
+  playActive=false;playing=false;
+  if(animRaf){cancelAnimationFrame(animRaf);animRaf=null;}
+  playIco.innerHTML='<polygon points="1,0 8,5 1,10"/>';
+  playLbl.textContent='PLAY';
+}
+playBtn.addEventListener('click',()=>{if(playing)stopPlay();else startPlay();});
+document.getElementById('speedRange').addEventListener('input',e=>{
+  speed=+e.target.value;document.getElementById('spdVal').textContent=speed;
+});
+
+// ── DATE PICKER ──────────────────────────────────────
+const datePicker=document.getElementById('datePicker');
+const fetchStatus=document.getElementById('fetchStatus');
+
+// Default: today (Taiwan time)
+const todayStr=new Date().toLocaleDateString('sv',{timeZone:'Asia/Taipei'});
+datePicker.value=todayStr;
+datePicker.max=new Date(Date.now()+7*86400000).toLocaleDateString('sv',{timeZone:'Asia/Taipei'});
+datePicker.min='2022-01-01'; // open-meteo archive start
+
+async function loadDate(dateStr){
+  if(!dateStr)return;
+  currentDate=dateStr;
+  stopPlay();resetScene();
+  fetchStatus.textContent='FETCHING…';fetchStatus.className='fetch-status loading';
+  try{
+    const data=await fetchDay(dateStr);
+    currentData=data;
+    buildDots();syncTimeline();
+    fetchStatus.textContent=`✓ ${data.length} hrs loaded`;fetchStatus.className='fetch-status ok';
+    setTimeout(startPlay,300);
+  }catch(e){
+    let msg = e.message;
+    if(location.protocol==='file:')
+      msg = '請用伺服器開啟（VS Code Live Server 或 python -m http.server）';
+    fetchStatus.textContent='✗ '+msg;fetchStatus.className='fetch-status err';
+  }
+}
+
+datePicker.addEventListener('change',e=>loadDate(e.target.value));
+
+document.getElementById('prevDay').addEventListener('click',()=>{
+  const d=new Date(datePicker.value);d.setDate(d.getDate()-1);
+  const s=d.toISOString().slice(0,10);datePicker.value=s;loadDate(s);
+});
+document.getElementById('nextDay').addEventListener('click',()=>{
+  const d=new Date(datePicker.value);d.setDate(d.getDate()+1);
+  const s=d.toISOString().slice(0,10);datePicker.value=s;loadDate(s);
+});
+
+// ── SAVE PNG ─────────────────────────────────────────
+function savePng(){
+  const snap=document.createElement('canvas');snap.width=W;snap.height=H;
+  const sc=snap.getContext('2d');
+  sc.fillStyle='#0c0c0c';sc.fillRect(0,0,W,H);
+  sc.save();sc.globalCompositeOperation=currentBlend;sc.drawImage(off,0,0);sc.restore();
+  sc.save();sc.globalCompositeOperation='source-over';
+  sc.beginPath();sc.arc(cx,cy,2.5,0,Math.PI*2);sc.fillStyle='rgba(255,255,255,0.5)';sc.fill();
+  sc.font='11px Space Mono,monospace';sc.fillStyle='rgba(255,255,255,0.18)';sc.textAlign='right';
+  sc.fillText(`後龍鎮沿海風象 · ${currentDate}`, W-28, H-24);
+  sc.fillStyle='rgba(255,255,255,0.1)';sc.fillText('Open-Meteo API', W-28, H-10);
+  sc.restore();
+  const a=document.createElement('a');
+  a.download=`houlong-wind-${currentDate||'unknown'}-${currentBlend}.png`;
+  a.href=snap.toDataURL('image/png');a.click();
+  const btn=document.getElementById('saveBtn');
+  btn.classList.add('flash');setTimeout(()=>btn.classList.remove('flash'),600);
+}
+document.getElementById('saveBtn').addEventListener('click',savePng);
+
+// ── BLEND BUTTONS ────────────────────────────────────
+const blendEl=document.getElementById('blendModes');
+BLEND_MODES.forEach((m,i)=>{
+  const btn=document.createElement('button');
+  btn.className='btn'+(i===0?' active':'');btn.textContent=m.label;
+  btn.addEventListener('click',()=>{
+    bModeIdx=i;currentBlend=BLEND_MODES[i].id;
+    blendEl.querySelectorAll('.btn').forEach((b,j)=>b.classList.toggle('active',j===i));
+    composite(false);
+    document.getElementById('pBlend').textContent=currentBlend;
+  });
+  blendEl.appendChild(btn);
+});
+
+// ── INIT ─────────────────────────────────────────────
+composite(false);
+loadDate(todayStr);
+</script>
+</body>
+</html>
